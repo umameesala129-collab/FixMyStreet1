@@ -1,6 +1,6 @@
 import React from "react";
 import { ComplaintStatus } from "../types";
-import { Check, Clock, AlertTriangle, UserCheck, XCircle, ArrowRight } from "lucide-react";
+import { Check, Clock, AlertTriangle, Sparkles, UserCheck, XCircle, ShieldAlert } from "lucide-react";
 
 interface TimelineProps {
   status: ComplaintStatus;
@@ -17,45 +17,62 @@ export const Timeline: React.FC<TimelineProps> = ({
   updatedAt,
   id
 }) => {
-  const steps: { key: ComplaintStatus; label: string; sub?: string }[] = [
+  const steps: { key: string; label: string; sub?: string }[] = [
     { key: "REPORTED", label: "Reported", sub: "Citizen complaint filed" },
-    { key: "VERIFIED", label: "Verified", sub: "AI & geo checked" },
+    { key: "AI_ANALYSIS", label: "AI Analysis", sub: "Vision model classified" },
+    { key: "VERIFIED", label: "Verified", sub: "Triage engine scored" },
     { key: "ASSIGNED", label: "Assigned", sub: department ? `Sent to ${department}` : "Department allocated" },
     { key: "IN_PROGRESS", label: "In Progress", sub: "Crews dispatched" },
-    { key: "RESOLVED", label: "Resolved", sub: "Evidence uploaded" },
+    { key: "RESOLVED", label: "Resolved", sub: "After photo uploaded" },
     { key: "CITIZEN_VERIFIED", label: "Citizen Verified", sub: "Citizen confirmed fix" }
   ];
 
-  const statusOrder: ComplaintStatus[] = [
-    "REPORTED",
-    "VERIFIED",
-    "ASSIGNED",
-    "IN_PROGRESS",
-    "RESOLVED",
-    "CITIZEN_VERIFIED"
-  ];
+  // Map complaint status to step index (0 to 6)
+  const getStatusIndex = (st: ComplaintStatus): number => {
+    switch (st) {
+      case "REPORTED":
+        return 1; // Both reported & AI analysis complete
+      case "VERIFIED":
+        return 2;
+      case "ASSIGNED":
+        return 3;
+      case "IN_PROGRESS":
+        return 4;
+      case "RESOLVED":
+        return 5;
+      case "CITIZEN_VERIFIED":
+        return 6;
+      case "VERIFICATION_FAILED":
+        return 4; // Reopened to In Progress
+      default:
+        return 0;
+    }
+  };
 
-  const currentIndex = status === "VERIFICATION_FAILED" ? 3 : statusOrder.indexOf(status);
+  const currentIndex = getStatusIndex(status);
 
   return (
-    <div id={id} className="w-full py-4">
+    <div id={id || "complaint-timeline"} className="w-full py-4">
       {status === "VERIFICATION_FAILED" && (
-        <div className="mb-4 p-3.5 bg-[#2e1014] border border-[#ef4444]/30 rounded-lg flex items-start gap-3">
-          <XCircle className="w-5 h-5 text-[#f87171] mt-0.5 shrink-0" />
+        <div className="mb-5 p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3">
+          <ShieldAlert className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
           <div>
-            <h4 className="text-xs font-bold text-[#f87171] uppercase tracking-wider">Verification Rejected by Citizen</h4>
-            <p className="text-xs text-[#fca5a5] mt-0.5">
-              The citizen inspected the site and reported the issue remains unresolved. Complaint has been reopened to In Progress.
+            <h4 className="text-xs font-bold text-rose-900 uppercase tracking-wider">
+              Verification Rejected by Citizen
+            </h4>
+            <p className="text-xs text-rose-800 mt-0.5">
+              The inspecting citizen reported that the problem was not adequately resolved. Ticket has been automatically reopened and escalated back to In Progress.
             </p>
           </div>
         </div>
       )}
 
       {/* Desktop Horizontal Stepper */}
-      <div className="hidden md:flex items-center justify-between relative">
-        <div className="absolute top-4 left-6 right-6 h-0.5 bg-[#1a1a1a] -z-0" />
+      <div className="hidden lg:flex items-center justify-between relative px-2">
+        {/* Track Line */}
+        <div className="absolute top-4 left-8 right-8 h-0.5 bg-slate-200 -z-0" />
         <div
-          className="absolute top-4 left-6 h-0.5 bg-[#c5a059] transition-all duration-500 -z-0"
+          className="absolute top-4 left-8 h-0.5 bg-blue-600 transition-all duration-500 -z-0"
           style={{
             width: `${Math.max(0, Math.min(100, (currentIndex / (steps.length - 1)) * 100))}%`
           }}
@@ -64,19 +81,19 @@ export const Timeline: React.FC<TimelineProps> = ({
         {steps.map((step, idx) => {
           const isCompleted = idx < currentIndex;
           const isCurrent = idx === currentIndex;
-          const isFailedStep = status === "VERIFICATION_FAILED" && step.key === "CITIZEN_VERIFIED";
+          const isFailedStep = status === "VERIFICATION_FAILED" && idx === 6;
 
           return (
-            <div key={step.key} className="flex flex-col items-center relative z-10 w-28 text-center">
+            <div key={step.key} className="flex flex-col items-center relative z-10 w-24 text-center">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center font-mono text-xs transition-colors duration-200 ${
                   isCompleted
-                    ? "bg-[#14291f] text-[#34d399] border border-[#10b981]/40 shadow-sm"
+                    ? "bg-emerald-600 text-white shadow-xs"
                     : isCurrent
-                    ? "bg-[#c5a059] text-black font-bold ring-4 ring-[#c5a059]/20 shadow-sm"
+                    ? "bg-blue-600 text-white font-bold ring-4 ring-blue-100 shadow-xs"
                     : isFailedStep
-                    ? "bg-[#2e1014] text-[#f87171] ring-4 ring-[#ef4444]/20 border border-[#ef4444]/40"
-                    : "bg-[#0c0c0c] border border-[#27272a] text-[#52525b]"
+                    ? "bg-rose-600 text-white ring-4 ring-rose-100 shadow-xs"
+                    : "bg-white border border-slate-200 text-slate-400"
                 }`}
               >
                 {isCompleted ? (
@@ -89,18 +106,20 @@ export const Timeline: React.FC<TimelineProps> = ({
                   <span>{idx + 1}</span>
                 )}
               </div>
+
               <span
-                className={`mt-2 text-[11px] uppercase tracking-wider font-semibold ${
+                className={`mt-2 text-xs font-semibold ${
                   isCurrent
-                    ? "text-[#c5a059] font-bold"
+                    ? "text-blue-700 font-bold"
                     : isCompleted
-                    ? "text-[#d4d4d8]"
-                    : "text-[#52525b]"
+                    ? "text-slate-800"
+                    : "text-slate-400"
                 }`}
               >
                 {step.label}
               </span>
-              <span className="text-[10px] text-[#71717a] line-clamp-1 mt-0.5">
+
+              <span className="text-[10px] text-slate-500 line-clamp-2 mt-0.5 px-1 leading-tight">
                 {step.sub}
               </span>
             </div>
@@ -108,41 +127,55 @@ export const Timeline: React.FC<TimelineProps> = ({
         })}
       </div>
 
-      {/* Mobile Vertical Stepper */}
-      <div className="md:hidden space-y-3">
+      {/* Mobile & Tablet Vertical Stepper */}
+      <div className="lg:hidden space-y-3 px-1">
         {steps.map((step, idx) => {
           const isCompleted = idx < currentIndex;
           const isCurrent = idx === currentIndex;
+          const isFailedStep = status === "VERIFICATION_FAILED" && idx === 6;
 
           return (
             <div key={step.key} className="flex items-start gap-3">
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-[10px] shrink-0 mt-0.5 ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center font-mono text-xs shrink-0 mt-0.5 ${
                   isCompleted
-                    ? "bg-[#14291f] text-[#34d399] border border-[#10b981]/40"
+                    ? "bg-emerald-600 text-white shadow-2xs"
                     : isCurrent
-                    ? "bg-[#c5a059] text-black font-bold ring-2 ring-[#c5a059]/30"
-                    : "bg-[#0c0c0c] text-[#52525b] border border-[#27272a]"
+                    ? "bg-blue-600 text-white font-bold ring-2 ring-blue-100"
+                    : isFailedStep
+                    ? "bg-rose-600 text-white"
+                    : "bg-slate-100 text-slate-400 border border-slate-200"
                 }`}
               >
-                {isCompleted ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : idx + 1}
+                {isCompleted ? (
+                  <Check className="w-4 h-4 stroke-[2.5]" />
+                ) : isCurrent ? (
+                  <Clock className="w-4 h-4 animate-pulse" />
+                ) : (
+                  idx + 1
+                )}
               </div>
-              <div className="flex-1">
+
+              <div className="flex-1 pb-1">
                 <div className="flex items-center justify-between">
                   <span
-                    className={`text-xs uppercase tracking-wider font-semibold ${
-                      isCurrent ? "text-[#c5a059]" : isCompleted ? "text-[#d4d4d8]" : "text-[#52525b]"
+                    className={`text-xs font-bold ${
+                      isCurrent
+                        ? "text-blue-700"
+                        : isCompleted
+                        ? "text-slate-800"
+                        : "text-slate-400"
                     }`}
                   >
                     {step.label}
                   </span>
                   {isCurrent && (
-                    <span className="text-[9px] uppercase font-bold text-[#c5a059] bg-[#211a0c] px-2 py-0.5 rounded border border-[#c5a059]/30">
-                      Active
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
+                      Active Stage
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-[#71717a]">{step.sub}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">{step.sub}</p>
               </div>
             </div>
           );

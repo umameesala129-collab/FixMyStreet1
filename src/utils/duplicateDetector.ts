@@ -67,13 +67,15 @@ export interface NewComplaintData {
  */
 export function findPotentialDuplicates(
   newReport: NewComplaintData,
-  existingIssues: Issue[],
+  existingIssues: Issue[] = [],
   minThresholdPercent = 50
 ): DuplicateMatch[] {
   const matches: DuplicateMatch[] = [];
+  const safeIssues = Array.isArray(existingIssues) ? existingIssues : [];
 
   // Active issues only (exclude fully citizen-verified resolved issues from heavy duplicates, or include recent ones)
-  for (const issue of existingIssues) {
+  for (const issue of safeIssues) {
+    if (!issue) continue;
     // Only compare if coordinates are valid
     if (typeof issue.latitude !== "number" || typeof issue.longitude !== "number") continue;
 

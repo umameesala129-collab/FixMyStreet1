@@ -110,3 +110,15 @@ export interface AIAnalysisResult {
   reasoning?: string;
   source?: "gemini" | "local-heuristic" | "fallback";
 }
+
+export interface CivicNotification {
+  id: string;
+  recipientRole: "citizen" | "authority" | "all";
+  recipientUserId?: string;
+  issueId: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  isRead: boolean;
+  type: "assigned" | "status_change" | "resolved" | "verification_needed" | "verified" | "reopened" | "critical_reported";
+}

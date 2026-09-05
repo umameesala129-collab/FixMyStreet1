@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { Issue, CivicCategory, ComplaintStatus, PriorityLevel } from "../types";
-import { ALL_CATEGORIES, ALL_STATUSES } from "../utils/categoryUtils";
+import { ALL_CATEGORIES } from "../utils/categoryUtils";
 import {
   MapPin,
   Filter,
@@ -10,7 +10,10 @@ import {
   ExternalLink,
   Navigation,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  Flame,
+  ShieldCheck
 } from "lucide-react";
 
 interface PublicMapPageProps {
@@ -30,15 +33,36 @@ export const PublicMapPage: React.FC<PublicMapPageProps> = ({
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-  const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
-  const [selectedPriority, setSelectedPriority] = useState<string>("ALL");
+  const [quickFilter, setQuickFilter] = useState<string>("ALL"); // ALL, CRITICAL, HIGH, MEDIUM, IN_PROGRESS, RESOLVED
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  // Top summary metrics
+  const safeIssues = Array.isArray(issues) ? issues : [];
+  const totalReports = safeIssues.length;
+  const resolvedCount = safeIssues.filter(
+    (i) => i && (i.status === "RESOLVED" || i.status === "CITIZEN_VERIFIED")
+  ).length;
+  const inProgressCount = safeIssues.filter((i) => i && i.status === "IN_PROGRESS").length;
+  const pendingCount = safeIssues.filter(
+    (i) => i && (i.status === "REPORTED" || i.status === "VERIFIED" || i.status === "ASSIGNED")
+  ).length;
+
   // Filter issues
-  const filteredIssues = issues.filter((item) => {
+  const filteredIssues = safeIssues.filter((item) => {
     if (selectedCategory !== "ALL" && item.category !== selectedCategory) return false;
-    if (selectedStatus !== "ALL" && item.status !== selectedStatus) return false;
-    if (selectedPriority !== "ALL" && item.priority_level !== selectedPriority) return false;
+
+    if (quickFilter === "CRITICAL" && item.priority_level !== "CRITICAL") return false;
+    if (quickFilter === "HIGH" && item.priority_level !== "HIGH") return false;
+    if (quickFilter === "MEDIUM" && item.priority_level !== "MEDIUM") return false;
+    if (quickFilter === "IN_PROGRESS" && item.status !== "IN_PROGRESS") return false;
+    if (
+      quickFilter === "RESOLVED" &&
+      item.status !== "RESOLVED" &&
+      item.status !== "CITIZEN_VERIFIED"
+    ) {
+      return false;
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchId = item.id.toLowerCase().includes(q);
@@ -61,7 +85,6 @@ export const PublicMapPage: React.FC<PublicMapPageProps> = ({
       zoomControl: true
     });
 
-    // Clean OpenStreetMap layer
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -107,7 +130,6 @@ export const PublicMapPage: React.FC<PublicMapPageProps> = ({
         markerColor = "#64748b"; // slate
       }
 
-      // Custom Leaflet DivIcon
       const customIcon = L.divIcon({
         className: "custom-civic-marker",
         html: `
@@ -138,9 +160,9 @@ export const PublicMapPage: React.FC<PublicMapPageProps> = ({
         icon: customIcon
       });
 
-      // Custom popup HTML (Strict Privacy Rule: No citizen personal details)
+      // SECTION 24: MARKER POPUP
       const popupHtml = `
-        <div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-width: 220px; padding: 6px 4px; color: #0f172a;">
+        <div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-width: 220px; padding: 4px; color: #0f172a;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <strong style="font-family: monospace; font-size: 11px; color: #2563eb; font-weight: 700;">${issue.id}</strong>
             <span style="
@@ -156,33 +178,32 @@ export const PublicMapPage: React.FC<PublicMapPageProps> = ({
               ${issue.priority_level}
             </span>
           </div>
-          <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 3px;">
-            ${issue.category}
+          <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 2px;">
+            Issue: ${issue.category}
           </div>
-          <div style="font-size: 12px; color: #64748b; margin-bottom: 8px; line-height: 1.4;">
+          <div style="font-size: 12px; color: #64748b; margin-bottom: 6px; line-height: 1.4;">
             ${issue.address}
           </div>
-          <div style="font-size: 11px; color: #475569; margin-bottom: 10px; border-top: 1px solid #f1f5f9; padding-top: 6px; line-height: 1.6;">
+          <div style="font-size: 11px; color: #334155; margin-bottom: 10px; border-top: 1px solid #f1f5f9; padding-top: 6px; line-height: 1.6;">
+            <div><strong>Priority:</strong> ${issue.priority_level} (${issue.priority_score}/100)</div>
             <div><strong>Status:</strong> ${issue.status.replace("_", " ")}</div>
-            <div><strong>Reports:</strong> ${issue.related_reports_count} verified neighbor(s)</div>
-            <div><strong>Reported:</strong> ${new Date(issue.created_at).toLocaleDateString()}</div>
+            <div><strong>Reports:</strong> ${issue.related_reports_count} citizen report(s)</div>
           </div>
           <button
             id="popup-view-${issue.id}"
             style="
               width: 100%;
-              padding: 8px 12px;
+              padding: 7px 12px;
               background-color: #2563eb;
               color: #ffffff;
-              font-weight: 600;
+              font-weight: 700;
               font-size: 11px;
               border: none;
               border-radius: 8px;
               cursor: pointer;
-              transition: background 0.2s;
             "
           >
-            Inspect Complaint Details
+            View Details
           </button>
         </div>
       `;
@@ -219,105 +240,109 @@ export const PublicMapPage: React.FC<PublicMapPageProps> = ({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
-        mapInstanceRef.current?.flyTo([latitude, longitude], 15);
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.setView([latitude, longitude], 15);
+        }
       },
-      () => {
-        alert("Could not access your location.");
+      (err) => {
+        console.warn("Locate error:", err);
       }
     );
   };
 
   return (
-    <div id={id} className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-      {/* Top Filter Bar */}
-      <div className="bg-white border-b border-slate-200 p-4 shadow-2xs shrink-0">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <MapPin className="w-5 h-5" />
-            </div>
+    <div id={id || "public-map-page"} className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+      {/* SECTION 24: TOP TRANSPARENCY HEADER & METRICS */}
+      <div className="bg-white border-b border-slate-200 p-4 sm:p-6 shadow-2xs shrink-0">
+        <div className="max-w-7xl mx-auto space-y-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-base font-bold text-slate-900 font-display">Interactive Public Map</h1>
-              <p className="text-xs text-slate-500">
-                OpenStreetMap &bull; Showing {filteredIssues.length} active civic issues
+              <h1 className="text-2xl font-bold text-slate-900 font-display">
+                City Issues
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                See reported civic issues and their current status.
               </p>
+            </div>
+
+            {/* Top Summary Badges */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-center">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Reports</span>
+                <span className="text-sm font-bold text-slate-900">{totalReports}</span>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 text-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-600 block">Resolved</span>
+                <span className="text-sm font-bold text-emerald-700">{resolvedCount}</span>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-center">
+                <span className="text-[10px] uppercase font-bold text-amber-600 block">In Progress</span>
+                <span className="text-sm font-bold text-amber-700">{inProgressCount}</span>
+              </div>
+              <div className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-center">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Pending</span>
+                <span className="text-sm font-bold text-slate-700">{pendingCount}</span>
+              </div>
             </div>
           </div>
 
-          {/* Filter Controls */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Search */}
-            <div className="relative flex-1 sm:w-52">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search street, area, ID..."
-                className="w-full text-xs pl-8 pr-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 shadow-2xs"
-              />
+          {/* Map Filters & Search */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+            {/* Quick Filter Pills (Section 24: All, Critical, High, Medium, In Progress, Resolved) */}
+            <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+              {[
+                { key: "ALL", label: "All" },
+                { key: "CRITICAL", label: "Critical" },
+                { key: "HIGH", label: "High" },
+                { key: "MEDIUM", label: "Medium" },
+                { key: "IN_PROGRESS", label: "In Progress" },
+                { key: "RESOLVED", label: "Resolved" }
+              ].map((pill) => (
+                <button
+                  key={pill.key}
+                  onClick={() => setQuickFilter(pill.key)}
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    quickFilter === pill.key
+                      ? "bg-slate-900 text-white shadow-2xs font-bold"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
             </div>
 
-            {/* Category Filter */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="text-xs py-2 px-3 border border-slate-200 rounded-xl bg-white text-slate-800 font-medium focus:border-blue-500 focus:outline-hidden shadow-2xs cursor-pointer"
-            >
-              <option value="ALL">All Categories</option>
-              {ALL_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+            {/* Search & Location */}
+            <div className="flex items-center gap-2 text-xs w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search street, area, ID..."
+                  className="w-full text-xs pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl bg-white text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-hidden"
+                />
+              </div>
 
-            {/* Status Filter */}
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="text-xs py-2 px-3 border border-slate-200 rounded-xl bg-white text-slate-800 font-medium focus:border-blue-500 focus:outline-hidden shadow-2xs cursor-pointer"
-            >
-              <option value="ALL">All Statuses</option>
-              {ALL_STATUSES.map((st) => (
-                <option key={st} value={st}>
-                  {st.replace("_", " ")}
-                </option>
-              ))}
-            </select>
-
-            {/* Priority Filter */}
-            <select
-              value={selectedPriority}
-              onChange={(e) => setSelectedPriority(e.target.value)}
-              className="text-xs py-2 px-3 border border-slate-200 rounded-xl bg-white text-slate-800 font-medium focus:border-blue-500 focus:outline-hidden shadow-2xs cursor-pointer"
-            >
-              <option value="ALL">All Priorities</option>
-              <option value="CRITICAL">Critical (80-100)</option>
-              <option value="HIGH">High (60-79)</option>
-              <option value="MEDIUM">Medium (40-59)</option>
-              <option value="LOW">Low (0-39)</option>
-            </select>
-
-            {/* Locate Me */}
-            <button
-              onClick={handleLocateMe}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-semibold rounded-xl flex items-center gap-1.5 transition-colors text-xs cursor-pointer"
-              title="Center map on my location"
-            >
-              <Navigation className="w-3.5 h-3.5 text-blue-600" />
-              <span>My Location</span>
-            </button>
+              <button
+                onClick={handleLocateMe}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl flex items-center gap-1 transition-colors text-xs shrink-0 cursor-pointer"
+                title="Center map on my location"
+              >
+                <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                <span>My Location</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Map Container & Legend */}
+      {/* Map Container & Floating Legend */}
       <div className="relative flex-1 w-full min-h-[600px]">
-        {/* Leaflet DOM Anchor */}
         <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-0" />
 
-        {/* Floating Map Legend */}
+        {/* Legend with Privacy Notice */}
         <div className="absolute bottom-6 left-6 z-10 bg-white/95 backdrop-blur-xs p-4 rounded-2xl border border-slate-200 shadow-lg text-xs space-y-2.5 max-w-xs">
           <div className="font-bold text-slate-900 text-xs">
             Priority Color Legend
@@ -325,27 +350,23 @@ export const PublicMapPage: React.FC<PublicMapPageProps> = ({
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-600">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0" />
-              <span>Critical (80-100)</span>
+              <span>Critical</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-orange-500 shrink-0" />
-              <span>High (60-79)</span>
+              <span>High</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
-              <span>Medium (40-59)</span>
+              <span>Medium</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-slate-400 shrink-0" />
-              <span>Low (0-39)</span>
-            </div>
-            <div className="flex items-center gap-2 col-span-2 pt-1 border-t border-slate-100">
               <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
-              <span className="text-emerald-700 font-semibold">Resolved &amp; Verified</span>
+              <span className="text-emerald-700 font-semibold">Resolved</span>
             </div>
           </div>
-          <div className="text-[11px] text-slate-400 pt-1 leading-relaxed">
-            Privacy notice: Exact personal citizen details are withheld from public view.
+          <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-100 leading-relaxed">
+            Privacy notice: Exact citizen personal details are kept strictly private.
           </div>
         </div>
       </div>

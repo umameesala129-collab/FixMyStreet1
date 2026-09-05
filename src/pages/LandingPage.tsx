@@ -23,26 +23,51 @@ import smartCityBg from "../assets/images/smart_city_bg_1788593742554.jpg";
 
 interface LandingPageProps {
   issues: Issue[];
-  onNavigate: (tab: "report" | "map" | "citizen-dash" | "authority-dash") => void;
+  onNavigate: (tab: "home" | "report" | "map" | "citizen-dash" | "authority-dash" | "login") => void;
   onSelectIssue: (id: string) => void;
+  onOpenAuthModal?: (initialRole?: "citizen" | "authority") => void;
+  onOpenAuthPage?: (role?: "citizen" | "authority", view?: "choose-role" | "citizen-login" | "authority-login" | "citizen-register" | "authority-register") => void;
   id?: string;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
-  issues,
+  issues = [],
   onNavigate,
   onSelectIssue,
+  onOpenAuthModal,
+  onOpenAuthPage,
   id
 }) => {
-  const totalReported = issues.length;
-  const resolvedCount = issues.filter(
-    (i) => i.status === "RESOLVED" || i.status === "CITIZEN_VERIFIED"
+  const safeIssues = Array.isArray(issues) ? issues : [];
+  const totalReported = safeIssues.length;
+  const resolvedCount = safeIssues.filter(
+    (i) => i && (i.status === "RESOLVED" || i.status === "CITIZEN_VERIFIED")
   ).length;
   const activeCount = totalReported - resolvedCount;
-  const criticalCount = issues.filter((i) => i.priority_level === "CRITICAL").length;
+  const criticalCount = safeIssues.filter((i) => i && i.priority_level === "CRITICAL").length;
   const resolutionRate = totalReported > 0 ? Math.round((resolvedCount / totalReported) * 100) : 0;
 
-  const recentIssues = issues.slice(0, 4);
+  const recentIssues = safeIssues.slice(0, 4);
+
+  const handleSignInClick = () => {
+    if (onOpenAuthPage) {
+      onOpenAuthPage(undefined, "choose-role");
+    } else if (onOpenAuthModal) {
+      onOpenAuthModal("citizen");
+    } else {
+      onNavigate("login");
+    }
+  };
+
+  const handleAuthorityAccessClick = () => {
+    if (onOpenAuthPage) {
+      onOpenAuthPage("authority", "authority-login");
+    } else if (onOpenAuthModal) {
+      onOpenAuthModal("authority");
+    } else {
+      onNavigate("login");
+    }
+  };
 
   return (
     <div id={id} className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
@@ -76,23 +101,42 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             Snap a photo of potholes, trash overflow, or broken streetlights. Your report is routed to the right municipal department, tracked publicly on the map, and confirmed by neighbors when finished.
           </p>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5">
+          {/* Action Buttons per Section 24: Report an Issue, Sign In, Authority Access */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
             <button
               id="hero-report-btn"
               onClick={() => onNavigate("report")}
-              className="w-full sm:w-auto px-7 py-3.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+              className="px-6 py-3.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
             >
-              <span>Report a Problem</span>
+              <span>Report an Issue</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </button>
+
+            <button
+              id="hero-signin-btn"
+              onClick={handleSignInClick}
+              className="px-5 py-3.5 text-sm font-semibold text-white bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-colors cursor-pointer backdrop-blur-md"
+            >
+              <Users className="w-4 h-4 text-blue-300" />
+              <span>Sign In</span>
+            </button>
+
+            <button
+              id="hero-authority-btn"
+              onClick={handleAuthorityAccessClick}
+              className="px-5 py-3.5 text-sm font-semibold text-slate-300 hover:text-white bg-slate-900/90 hover:bg-slate-800 border border-slate-700 rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-colors cursor-pointer backdrop-blur-md"
+            >
+              <Shield className="w-4 h-4 text-emerald-400" />
+              <span>Authority Access</span>
+            </button>
+
             <button
               id="hero-map-btn"
               onClick={() => onNavigate("map")}
-              className="w-full sm:w-auto px-7 py-3.5 text-sm font-semibold text-slate-200 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 rounded-xl shadow-2xs flex items-center justify-center gap-2 transition-colors cursor-pointer backdrop-blur-md"
+              className="px-4 py-3.5 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <MapPin className="w-4 h-4 text-blue-400" />
-              <span>Explore Public Map</span>
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Explore Map</span>
             </button>
           </div>
         </div>
@@ -135,6 +179,72 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <div className="text-3xl font-extrabold text-indigo-600">{resolutionRate}%</div>
             <p className="text-xs text-slate-400 mt-1">City accountability index</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Section 4: Role Selection Portal Experience */}
+      <section className="py-12 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-sm text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 font-display">
+            Welcome to FixMyStreet
+          </h2>
+          <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
+            How would you like to continue? Select your access portal to begin reporting or managing civic infrastructure.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-8 text-left">
+            {/* Citizen Option */}
+            <div
+              id="landing-role-citizen-card"
+              onClick={() => {
+                if (onOpenAuthModal) onOpenAuthModal("citizen");
+                else onNavigate("citizen-dash");
+              }}
+              className="p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-600 bg-slate-50/50 hover:bg-blue-50/20 transition-all cursor-pointer shadow-2xs hover:shadow-md flex flex-col justify-between group"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <Users className="w-6 h-6" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 font-display">
+                  Citizen Login
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Report and track civic issues in your neighborhood. Confirm when repairs are completed.
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-slate-200/80 flex items-center justify-between text-xs font-bold text-blue-700">
+                <span>Enter Citizen Portal</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+
+            {/* Authority Option */}
+            <div
+              id="landing-role-authority-card"
+              onClick={() => {
+                if (onOpenAuthModal) onOpenAuthModal("authority");
+                else onNavigate("authority-dash");
+              }}
+              className="p-6 rounded-2xl border-2 border-slate-200 hover:border-slate-800 bg-slate-50/50 hover:bg-slate-100/50 transition-all cursor-pointer shadow-2xs hover:shadow-md flex flex-col justify-between group"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-slate-200 text-slate-800 flex items-center justify-center mb-4 group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                  <Shield className="w-6 h-6" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 font-display">
+                  Authority Login
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Manage and resolve civic issues. Triage priority work orders, assign departments, and upload proof.
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-800">
+                <span>Enter Operations Portal</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -356,6 +466,41 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Section 26: Trust & Transparency Section */}
+      <section className="py-16 bg-slate-50 border-t border-slate-200 w-full">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 font-display mb-3">
+            Why FixMyStreet?
+          </h2>
+          <p className="text-sm text-slate-500 max-w-xl mx-auto mb-10">
+            A reliable municipal reporting bridge built on open civic data and community accountability.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
+              <h3 className="text-base font-bold text-slate-900 mb-2">Faster Reporting</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Structured complaints make reporting easier. Pre-filled location tags and quick photo analysis remove guesswork.
+              </p>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
+              <h3 className="text-base font-bold text-slate-900 mb-2">Better Prioritization</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Urgent issues receive higher priority. Multi-factor scoring ensures hazardous road and drainage conditions get dispatched first.
+              </p>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
+              <h3 className="text-base font-bold text-slate-900 mb-2">Transparent Resolution</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Citizens can verify completed work. Side-by-side photographic evidence ensures tickets are only closed when actually fixed.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
