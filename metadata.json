@@ -1,0 +1,10 @@
+{
+  "name": "FixMyStreet",
+  "description": "Civic issue reporting and resolution platform connecting citizens with municipal authorities to report, track, and resolve public infrastructure issues.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
